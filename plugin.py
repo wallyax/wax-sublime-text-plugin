@@ -17,7 +17,7 @@ class WaxLinterCommand(sublime_plugin.TextCommand):
         
         if is_supported_file_type(file_name):
             html_code = extract_html_from_text(self.view, document_text)
-            analyse_code = analyse(html_code, api_key)
+            analyse_code = analyse_wally(html_code, api_key)
             display_analysis_results(self, analyse_code)
 
         else:
@@ -79,10 +79,6 @@ def extract_html_from_xml(html_code):
         html_string += f'<{html.strip()}>\n'
 
     return html_string.strip() or html_code
-
-
-def analyse(html_code, api_key):
-    return analyse_wally(html_code, api_key)
 
 
 def analyse_wally(html_code, api_key):
