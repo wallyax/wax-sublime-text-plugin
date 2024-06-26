@@ -2,7 +2,7 @@ The Wax Linter extension provides powerful linting capabilities for HTML, JavaSc
 
 ### Screenshots
 
-Linter picks up on accessibility errors in html code and lists it in the problems module as well as code suggestions.
+Linter picks up on accessibility errors in html code and lists them.
 
 For example:
 ![Linting in Action](https://assets2.wallyax.com/common/sublime-linter.png)
@@ -19,11 +19,10 @@ Installation
       * Linux: ~/.config/sublime-text-2/Packages/WAXLint
       * Mac: ~/Library/Application Support/Sublime Text 2/Packages/WAXLint
       * Windows: %APPDATA%/Sublime Text 2/Packages/WAXLint
-   * Relaunch Sublime Text
 
 Usage
 -----
- - Navigate to Preferences > Package Settings > JSLint > Settings - Default and
-add the api key 
+ - Bring up the Command Palette (```Command+Shift+P``` on OS X, ```Control+Shift+P``` on Linux/Windows), then type ```Open WAX Lint Settings```  and then add the generated api key.   
+  - Restart the Sublime Text to start linting.
  - Wax Linter plugin automatically lints on any file open or save events of the respective file.
 

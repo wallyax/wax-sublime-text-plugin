@@ -3,15 +3,16 @@ import sublime_plugin
 import urllib.request
 import re
 import json
+import os
 
-
-api_key = ''  # Set your API key here
-api_url = 'https://wax-prd1-uae.wallyax.com/lint/html'
-
-
+SETTINGS_FILE_PATH = os.path.join(sublime.packages_path(), 'WaxLint', 'WAXLint.sublime-settings')
+SETTINGS_FILE = 'WAXLint.sublime-settings'
+api_url = 'https://gateway.wallyax.com/wallyax/lint-html/1.0'
 class WaxLinterCommand(sublime_plugin.TextCommand):
 
     def run(self, edit):
+        settings = sublime.load_settings(SETTINGS_FILE)
+        api_key  = settings.get('api_key','')
         document_text = self.view.substr(sublime.Region(0, self.view.size()))
         file_name = self.view.file_name()
         
@@ -41,9 +42,9 @@ class WaxLinterCommand(sublime_plugin.TextCommand):
             if matched_content.startswith('<') and not matched_content.startswith('</'):
 
                 if matched_content.endswith('/>'):
-                    modified_content = matched_content.replace('/>', f' wax-ln="{line_number}" />')
+                    modified_content = matched_content.replace('/>', ' wax-ln="{}" />'.format(line_number))
                 else:
-                    modified_content = matched_content.replace('>', f' wax-ln="{line_number}">')
+                    modified_content = matched_content.replace('>', ' wax-ln="{}">'.format(line_number))
                 matches['htmlObject'].append({
                     'lineNumber': line_number,
                     'character': self.view.rowcol(position)[1],
@@ -76,8 +77,7 @@ class WaxLinterCommand(sublime_plugin.TextCommand):
 
                 html = html.replace('{`', '').replace('`}', '')
                 html = re.sub(r'\$\{[^\}]+\}', '', html)
-                html_string += f'<{html.strip()}>\n'
-
+                html_string += '<{}>\n'.format(html.strip())
         else:
             html_regex = re.compile(r'<template[^>]*>\s*([\s\S]*?)\s*</template>', re.DOTALL)
 
@@ -90,14 +90,14 @@ class WaxLinterCommand(sublime_plugin.TextCommand):
     def analyse_wally(self, html_code: str, api_key: str) -> list:
         try:
             data = json.dumps({'element': ''.join(html_code['htmlStrings']), 'isLinter': True}).encode()
-            req = urllib.request.Request(f'{api_url}?apikey={api_key}', data=data, headers={'Content-Type': 'application/json'}, method='POST')
+            req = urllib.request.Request('{}?apikey={}'.format(api_url, api_key), data=data, headers={'Content-Type': 'application/json'}, method='POST')
             response = urllib.request.urlopen(req)
             if response.status == 200:
                 analysis_results = self.map_results_to_lines(json.loads(response.read().decode()))
                 return analysis_results
 
         except Exception as error:
-            self.view.set_status('wax_linter_message', f"We were not able to process your request: {error}")
+            self.view.set_status('wax_linter_message', "We were not able to process your request: {}".format(error))
 
         return []
 
@@ -136,14 +136,14 @@ class WaxLinterCommand(sublime_plugin.TextCommand):
             # If a message for this region already exists, append the new message to the list
             if region_key in messages:
                 message_number = len(messages[region_key]['message'].split('\n')) + 1
-                new_message = f"\n{message_number}. {match['message']}"
+                new_message = "\n{}. {}".format(message_number, match['message'])
                 messages[region_key]['message'] += new_message
 
             else:
                 regions.append(region)
                 # Start message numbering at 1 for readability
                 messages[region_key] = {
-                    "message": f"1. {match['message']}",
+                    "message": "1. {}".format(match['message']),
                     "severity": match['severity']
                 }
 
@@ -172,9 +172,9 @@ class WaxLinterEventListener(sublime_plugin.EventListener):
                 message_info = messages.get(str(region))
                 if message_info:
                     # Construct the message for the tooltip
-                    tooltip_content = f"<strong>WAX Linter({message_info['severity']})</strong>: {message_info['message']}"
+                    tooltip_content = "<strong>WAX Linter({})</strong>: {}".format(message_info['severity'], message_info['message'])
                     # Show the tooltip at the start of the region
-                    view.set_status('wax_linter_message', f"WAX Linter({message_info['severity']}): {message_info['message']}")
+                    view.set_status('wax_linter_message', "WAX Linter({}): {}".format(message_info['severity'], message_info['message']))
                     view.show_popup(tooltip_content, location=region.begin(), max_width=500)
                     break
         else:
@@ -190,3 +190,7 @@ class WaxLinterEventListener(sublime_plugin.EventListener):
     
     def on_post_save_async(self, view):
         view.run_command("wax_linter")
+
+class OpenWaxLinterSettingsCommand(sublime_plugin.ApplicationCommand):
+    def run(self):
+        sublime.active_window().open_file(SETTINGS_FILE_PATH)
