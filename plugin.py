@@ -171,14 +171,11 @@ class WaxLinterEventListener(sublime_plugin.EventListener):
             view.erase_status('wax_linter_message')
 
     def on_load_async(self, view):
-        print("File opened, triggering linter")  # Debug print for file open
         view.run_command("wax_linter")
     
     def on_pre_close(self, view):
-        print("File closing, triggering linter")  # Debug print for file close
         view.run_command("wax_linter")
     
     
     def on_post_save_async(self, view):
-        print("File saved, triggering linter")  # Debug print for file save
         view.run_command("wax_linter")
