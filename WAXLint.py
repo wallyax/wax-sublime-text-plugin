@@ -4,14 +4,14 @@ import urllib.request
 import re
 import json
 
-
-api_key = ''  # Set your API key here
+SETTINGS_FILE = 'WAXLint.sublime-settings'
 api_url = 'https://wax-prd1-uae.wallyax.com/lint/html'
-
 
 class WaxLinterCommand(sublime_plugin.TextCommand):
 
     def run(self, edit):
+        settings = sublime.load_settings(SETTINGS_FILE)
+        api_key  = settings.get('api_key','')
         document_text = self.view.substr(sublime.Region(0, self.view.size()))
         file_name = self.view.file_name()
         
