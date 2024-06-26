@@ -17,18 +17,18 @@ class WaxLinterCommand(sublime_plugin.TextCommand):
         
         if is_supported_file_type(file_name):
             html_code = extract_html_from_text(self.view, document_text)
-            analyse_code = analyse_wally(html_code, api_key)
+            analyse_code = analyse_wally(self.view, html_code, api_key)
             display_analysis_results(self, analyse_code)
 
         else:
             self.view.set_status('wax_linter_message', "Unsupported file type")
 
 
-def is_supported_file_type(file_name):
+def is_supported_file_type(file_name: str) -> bool:
     return file_name.endswith(('.html', '.js', '.jsx', '.ts', '.tsx', '.php', '.vue', '.astro', '.svelte'))
 
 
-def extract_html_from_text(view, text):
+def extract_html_from_text(view, text: str) -> dict:
     regex = re.compile(r'(<[^>]+>|[^<]+)')
     matches = {'htmlStrings': [], 'htmlObject': []}
     pos = 0
@@ -67,7 +67,7 @@ def extract_html_from_text(view, text):
     return matches
 
 
-def extract_html_from_xml(html_code):
+def extract_html_from_xml(html_code: str) -> str:
     html_regex = re.compile(r'\s*\(\s*(<([a-zA-Z]+)[^>]*>.*?</\2>|<([a-zA-Z]+)\s+[^/>]+?/>)\s*\);', re.DOTALL)
     html_string = ''
 
@@ -81,8 +81,9 @@ def extract_html_from_xml(html_code):
     return html_string.strip() or html_code
 
 
-def analyse_wally(html_code, api_key):
+def analyse_wally(view, html_code: str, api_key: str) -> list:
     try:
+        print(html_code['htmlStrings'])
         data = json.dumps({'element': ''.join(html_code['htmlStrings']), 'isLinter': True}).encode()
         req = urllib.request.Request(f'{api_url}?apikey={api_key}', data=data, headers={'Content-Type': 'application/json'}, method='POST')
         response = urllib.request.urlopen(req)
@@ -91,7 +92,7 @@ def analyse_wally(html_code, api_key):
             return analysis_results
 
     except Exception as error:
-        self.view.set_status('wax_linter_message', f"We were not able to process your request: {error}")
+        view.set_status('wax_linter_message', f"We were not able to process your request: {error}")
 
     return []
 
