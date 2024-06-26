@@ -15,133 +15,128 @@ class WaxLinterCommand(sublime_plugin.TextCommand):
         document_text = self.view.substr(sublime.Region(0, self.view.size()))
         file_name = self.view.file_name()
         
-        if is_supported_file_type(file_name):
-            html_code = extract_html_from_text(self.view, document_text)
-            analyse_code = analyse_wally(self.view, html_code, api_key)
-            display_analysis_results(self, analyse_code)
+        if self.is_supported_file_type(file_name):
+            html_code = self.extract_html_from_text(document_text)
+            analyse_code = self.analyse_wally(html_code, api_key)
+            self.display_analysis_results(analyse_code)
 
         else:
             self.view.set_status('wax_linter_message', "Unsupported file type")
 
+    def is_supported_file_type(self, file_name: str) -> bool:
+        return file_name.endswith(('.html', '.js', '.jsx', '.ts', '.tsx', '.php', '.vue', '.astro', '.svelte'))
 
-def is_supported_file_type(file_name: str) -> bool:
-    return file_name.endswith(('.html', '.js', '.jsx', '.ts', '.tsx', '.php', '.vue', '.astro', '.svelte'))
+    def extract_html_from_text(self, text: str) -> dict:
+        regex = re.compile(r'(<[^>]+>|[^<]+)')
+        matches = {'htmlStrings': [], 'htmlObject': []}
+        pos = 0
 
+        for match in regex.finditer(text):
 
-def extract_html_from_text(view, text: str) -> dict:
-    regex = re.compile(r'(<[^>]+>|[^<]+)')
-    matches = {'htmlStrings': [], 'htmlObject': []}
-    pos = 0
+            matched_content = match.group(0).strip().replace('\s+', ' ')
 
-    for match in regex.finditer(text):
+            position = self.view.text_point(pos, match.start())
+            line_number = self.view.rowcol(position)[0] + 1  # Add 1 because lines are zero-based in Sublime
 
-        matched_content = match.group(0).strip().replace('\s+', ' ')
+            if matched_content.startswith('<') and not matched_content.startswith('</'):
 
-        position = view.text_point(pos, match.start())
-        line_number = view.rowcol(position)[0] + 1  # Add 1 because lines are zero-based in Sublime
-
-        if matched_content.startswith('<') and not matched_content.startswith('</'):
-
-            if matched_content.endswith('/>'):
-                modified_content = matched_content.replace('/>', f' wax-ln="{line_number}" />')
+                if matched_content.endswith('/>'):
+                    modified_content = matched_content.replace('/>', f' wax-ln="{line_number}" />')
+                else:
+                    modified_content = matched_content.replace('>', f' wax-ln="{line_number}">')
+                matches['htmlObject'].append({
+                    'lineNumber': line_number,
+                    'character': self.view.rowcol(position)[1],
+                    'element': modified_content
+                })
             else:
-                modified_content = matched_content.replace('>', f' wax-ln="{line_number}">')
-            matches['htmlObject'].append({
-                'lineNumber': line_number,
-                'character': view.rowcol(position)[1],
-                'element': modified_content
-            })
-        else:
-            if matched_content == '':
-                continue
+                if matched_content == '':
+                    continue
 
-            matches['htmlObject'].append({
-                'lineNumber': line_number,
-                'character': view.rowcol(position)[1],
-                'element': matched_content
-            })
+                matches['htmlObject'].append({
+                    'lineNumber': line_number,
+                    'character': self.view.rowcol(position)[1],
+                    'element': matched_content
+                })
 
-    html_strings = [obj['element'] for obj in matches['htmlObject']]
-    matches['htmlStrings'] = [extract_html_from_xml(''.join(html_strings))]
+        html_strings = [obj['element'] for obj in matches['htmlObject']]
+        matches['htmlStrings'] = [self.extract_html_from_xml(''.join(html_strings))]
 
-    return matches
+        return matches
 
+    def extract_html_from_xml(self, html_code: str) -> str:
+        html_regex = re.compile(r'\s*\(\s*(<([a-zA-Z]+)[^>]*>.*?</\2>|<([a-zA-Z]+)\s+[^/>]+?/>)\s*\);', re.DOTALL)
+        html_string = ''
 
-def extract_html_from_xml(html_code: str) -> str:
-    html_regex = re.compile(r'\s*\(\s*(<([a-zA-Z]+)[^>]*>.*?</\2>|<([a-zA-Z]+)\s+[^/>]+?/>)\s*\);', re.DOTALL)
-    html_string = ''
+        for match in html_regex.finditer(html_code):
+            html = match.group(0)
 
-    for match in html_regex.finditer(html_code):
-        html = match.group(0)
+            html = html.replace('{`', '').replace('`}', '')
+            html = re.sub(r'\$\{[^\}]+\}', '', html)
+            html_string += f'<{html.strip()}>\n'
 
-        html = html.replace('{`', '').replace('`}', '')
-        html = re.sub(r'\$\{[^\}]+\}', '', html)
-        html_string += f'<{html.strip()}>\n'
+        return html_string.strip() or html_code
 
-    return html_string.strip() or html_code
+    def analyse_wally(self, html_code: str, api_key: str) -> list:
+        try:
+            data = json.dumps({'element': ''.join(html_code['htmlStrings']), 'isLinter': True}).encode()
+            req = urllib.request.Request(f'{api_url}?apikey={api_key}', data=data, headers={'Content-Type': 'application/json'}, method='POST')
+            response = urllib.request.urlopen(req)
+            if response.status == 200:
+                analysis_results = self.map_results_to_lines(json.loads(response.read().decode()))
+                return analysis_results
 
+        except Exception as error:
+            self.view.set_status('wax_linter_message', f"We were not able to process your request: {error}")
 
-def analyse_wally(view, html_code: str, api_key: str) -> list:
-    try:
-        print(html_code['htmlStrings'])
-        data = json.dumps({'element': ''.join(html_code['htmlStrings']), 'isLinter': True}).encode()
-        req = urllib.request.Request(f'{api_url}?apikey={api_key}', data=data, headers={'Content-Type': 'application/json'}, method='POST')
-        response = urllib.request.urlopen(req)
-        if response.status == 200:
-            analysis_results = map_results_to_lines(json.loads(response.read().decode()))
-            return analysis_results
+        return []
 
-    except Exception as error:
-        view.set_status('wax_linter_message', f"We were not able to process your request: {error}")
+    def get_line_number(self, html_tag):
+        match = re.search(r' wax-ln="(\d+)"', html_tag)
 
-    return []
+        if match:
+            return int(match.group(1))
 
-def get_line_number(html_tag):
-    match = re.search(r' wax-ln="(\d+)"', html_tag)
+        return None
 
-    if match:
-        return int(match.group(1))
+    def map_results_to_lines(self, analysis_results):
+        mapped_results = []
 
-    return None
+        for result in analysis_results:
+            result['lineNumber'] = self.get_line_number(result.get('element', ''))
+            mapped_results.append(result)
 
-def map_results_to_lines(analysis_results):
-    mapped_results = []
+        return mapped_results
 
-    for result in analysis_results:
-        result['lineNumber'] = get_line_number(result.get('element', ''))
-        mapped_results.append(result)
-
-    return mapped_results
-
-def display_analysis_results(self, matches):
-    self.view.erase_regions('wax_linter_errors')
-    regions = []
-    messages = {}
-    point = self.view.sel()[0].begin()
-    
-    for match in matches:
-        line_number = match['lineNumber'] - 1
-        message = match['message']
-        severity = match['severity']
+    def display_analysis_results(self, matches):
+        self.view.erase_regions('wax_linter_errors')
+        regions = []
+        messages = {}
+        point = self.view.sel()[0].begin()
         
-        point = self.view.text_point(line_number, 0)
-        region = self.view.line(point)
-        regions.append(region)
+        for match in matches:
+            line_number = match['lineNumber'] - 1
+            message = match['message']
+            severity = match['severity']
+            
+            point = self.view.text_point(line_number, 0)
+            region = self.view.line(point)
+            regions.append(region)
 
-        messages[str(region)] = {
-            "message": match['message'],
-            "severity": match['severity']
-        }
+            messages[str(region)] = {
+                "message": match['message'],
+                "severity": match['severity']
+            }
 
-    self.view.add_regions(
-        'wax_linter_errors',
-        regions,
-        'region.redish',
-        'dot',
-        sublime.DRAW_OUTLINED
-    )
+        self.view.add_regions(
+            'wax_linter_errors',
+            regions,
+            'region.redish',
+            'dot',
+            sublime.DRAW_OUTLINED
+        )
 
-    self.view.settings().set('wax_linter_messages', messages)
+        self.view.settings().set('wax_linter_messages', messages)
 
 
 class WaxLinterEventListener(sublime_plugin.EventListener):
