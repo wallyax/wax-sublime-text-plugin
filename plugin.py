@@ -66,14 +66,24 @@ class WaxLinterCommand(sublime_plugin.TextCommand):
 
     def extract_html_from_xml(self, html_code: str) -> str:
         html_regex = re.compile(r'\s*\(\s*(<([a-zA-Z]+)[^>]*>.*?</\2>|<([a-zA-Z]+)\s+[^/>]+?/>)\s*\);', re.DOTALL)
+
+        match = html_regex.search(html_code)
         html_string = ''
 
-        for match in html_regex.finditer(html_code):
-            html = match.group(0)
+        if match:
+            for match in html_regex.finditer(html_code):
+                html = match.group(0)
 
-            html = html.replace('{`', '').replace('`}', '')
-            html = re.sub(r'\$\{[^\}]+\}', '', html)
-            html_string += f'<{html.strip()}>\n'
+                html = html.replace('{`', '').replace('`}', '')
+                html = re.sub(r'\$\{[^\}]+\}', '', html)
+                html_string += f'<{html.strip()}>\n'
+
+        else:
+            html_regex = re.compile(r'<template[^>]*>\s*([\s\S]*?)\s*</template>', re.DOTALL)
+
+            match = html_regex.search(html_code)
+            if match:
+                return match.group(1).strip()
 
         return html_string.strip() or html_code
 
@@ -116,17 +126,26 @@ class WaxLinterCommand(sublime_plugin.TextCommand):
         
         for match in matches:
             line_number = match['lineNumber'] - 1
-            message = match['message']
-            severity = match['severity']
             
             point = self.view.text_point(line_number, 0)
             region = self.view.line(point)
-            regions.append(region)
 
-            messages[str(region)] = {
-                "message": match['message'],
-                "severity": match['severity']
-            }
+            # Convert region to a string key to use in a dictionary
+            region_key = str(region)
+
+            # If a message for this region already exists, append the new message to the list
+            if region_key in messages:
+                message_number = len(messages[region_key]['message'].split('\n')) + 1
+                new_message = f"\n{message_number}. {match['message']}"
+                messages[region_key]['message'] += new_message
+
+            else:
+                regions.append(region)
+                # Start message numbering at 1 for readability
+                messages[region_key] = {
+                    "message": f"1. {match['message']}",
+                    "severity": match['severity']
+                }
 
         self.view.add_regions(
             'wax_linter_errors',
