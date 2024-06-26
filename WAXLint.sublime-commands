@@ -1,6 +1,6 @@
 [
     {
-        "caption": "Open Wax Lint Settings",
-        "command": "open_wax_lint_settings"
+        "caption": "Open Wax Linter Settings",
+        "command": "open_wax_linter_settings"
     }
 ]
