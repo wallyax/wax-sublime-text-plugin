@@ -7,7 +7,7 @@ import os
 
 SETTINGS_FILE_PATH = os.path.join(sublime.packages_path(), 'WaxLint', 'WAXLint.sublime-settings')
 SETTINGS_FILE = 'WAXLint.sublime-settings'
-api_url = 'https://gateway.wallyax.com/wallyax/lint-html/1.0'
+api_url = 'https://gateway.wallyax.com/wallyax/audit-lint-html/2.0'
 class WaxLinterCommand(sublime_plugin.TextCommand):
 
     def run(self, edit):
@@ -89,7 +89,7 @@ class WaxLinterCommand(sublime_plugin.TextCommand):
 
     def analyse_wally(self, html_code: str, api_key: str) -> list:
         try:
-            data = json.dumps({'element': ''.join(html_code['htmlStrings']), 'isLinter': True}).encode()
+            data = json.dumps({'element': ''.join(html_code['htmlStrings']), 'isLinter': True,'rules':[]}).encode()
             req = urllib.request.Request('{}?apikey={}'.format(api_url, api_key), data=data, headers={'Content-Type': 'application/json'}, method='POST')
             response = urllib.request.urlopen(req)
             if response.status == 200:
